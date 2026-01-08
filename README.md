@@ -32,4 +32,4 @@ go get github.com/opentrusty/opentrusty-core
 
 ## License
 
-MIT
+Apache-2.0
