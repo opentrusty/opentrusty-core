@@ -1,7 +1,3 @@
-{
-    # Global options
-    auto_https off
-}
 
 # Common proxy headers for OpenTrusty
 (proxy_headers) {
