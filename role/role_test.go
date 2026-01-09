@@ -16,6 +16,8 @@ package role
 
 import (
 	"testing"
+
+	"github.com/opentrusty/opentrusty-core/policy"
 )
 
 func TestRoleHasPermission(t *testing.T) {
@@ -71,8 +73,11 @@ func TestRoleHasPermission(t *testing.T) {
 func TestDefaultRoleMappings(t *testing.T) {
 	// Verify that default roles have the expected "anchor" permissions
 	platformAdmin := Role{Permissions: PlatformAdminPermissions}
-	if !platformAdmin.HasPermission("random:perm") {
-		t.Error("Platform admin should have all permissions via wildcard")
+	if !platformAdmin.HasPermission(policy.PermPlatformManageTenants) {
+		t.Error("Platform admin should have platform:manage_tenants permission")
+	}
+	if platformAdmin.HasPermission(policy.PermTenantManageUsers) {
+		t.Error("Platform admin should NOT have tenant:manage_users permission (restriction)")
 	}
 
 	tenantOwner := Role{Permissions: TenantOwnerPermissions}
