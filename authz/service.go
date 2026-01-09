@@ -185,20 +185,15 @@ func (s *Service) HasPermission(ctx context.Context, userID string, scope role.S
 
 	for _, a := range assignments {
 		matchesScope := false
-		scopeCtxID := ""
-		if a.ScopeContextID != nil {
-			scopeCtxID = *a.ScopeContextID
-		}
 
-		if scope == role.ScopePlatform {
-			if a.Scope == role.ScopePlatform {
+		// Platform administrators have global authority across all scopes.
+		if a.Scope == role.ScopePlatform {
+			matchesScope = true
+		} else if a.Scope == scope {
+			// For context-specific scopes (tenant, client), the context IDs must match exactly.
+			if scopeContextID != nil && a.ScopeContextID != nil && *a.ScopeContextID == *scopeContextID {
 				matchesScope = true
 			}
-		} else {
-			if a.Scope == scope && scopeContextID != nil && scopeCtxID == *scopeContextID {
-				matchesScope = true
-			}
-
 		}
 
 		if !matchesScope {
