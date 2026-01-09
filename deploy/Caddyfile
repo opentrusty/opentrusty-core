@@ -24,8 +24,21 @@ admin.yourdomain.com {
 # OpenTrusty Control Panel (UI Console)
 console.yourdomain.com {
     root * /var/www/opentrusty-control-panel/dist
-    file_server
-    try_files {path} /index.html
+    
+    # Serve assets from /admin/* (Vite base)
+    handle_path /admin/* {
+        file_server
+    }
+
+    # Rewrite root to /admin/ to match Vite base
+    handle / {
+        rewrite * /admin/
+    }
+
+    # SPA Fallback
+    handle {
+        try_files {path} /index.html
+    }
 
     header {
         # Disable FLoC
