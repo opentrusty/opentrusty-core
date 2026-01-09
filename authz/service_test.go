@@ -65,7 +65,7 @@ func TestHasPermission(t *testing.T) {
 		ID:          "role-admin",
 		Name:        "admin",
 		Scope:       role.ScopePlatform,
-		Permissions: []string{"*"},
+		Permissions: role.PlatformAdminPermissions,
 	}
 	tenantRole := &role.Role{
 		ID:          "role-tenant",
@@ -99,19 +99,27 @@ func TestHasPermission(t *testing.T) {
 		want       bool
 	}{
 		{
-			name:       "platform admin has any permission",
+			name:       "platform admin has platform management permission",
 			userID:     "user-admin",
 			scope:      role.ScopePlatform,
-			permission: "any:action",
+			permission: "platform:manage_tenants",
 			want:       true,
 		},
 		{
-			name:       "platform admin has tenant permission (override)",
+			name:       "platform admin has platform management permission even at tenant scope (override)",
 			userID:     "user-admin",
 			scope:      role.ScopeTenant,
 			contextID:  stringPtr("any-tenant"),
-			permission: "tenant:action",
+			permission: "platform:manage_tenants",
 			want:       true,
+		},
+		{
+			name:       "platform admin lacks tenant user management permission (restriction)",
+			userID:     "user-admin",
+			scope:      role.ScopeTenant,
+			contextID:  stringPtr("t1"),
+			permission: "tenant:manage_users",
+			want:       false,
 		},
 		{
 			name:       "tenant editor has specific permission in context",

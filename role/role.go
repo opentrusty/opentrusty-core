@@ -79,7 +79,17 @@ const (
 
 // PlatformAdminPermissions defines permissions for the platform_admin role.
 var PlatformAdminPermissions = []string{
-	"*", // Wildcard: all permissions
+	policy.PermPlatformManageTenants,
+	policy.PermPlatformManageAdmins,
+	policy.PermPlatformViewAudit,
+	policy.PermPlatformBootstrap,
+	policy.PermControlPlaneLogin,
+	policy.PermTenantView,
+	policy.PermTenantViewAudit,
+	policy.PermUserReadProfile,
+	policy.PermUserWriteProfile,
+	policy.PermUserChangePassword,
+	policy.PermUserManageSessions,
 }
 
 // TenantOwnerPermissions defines permissions for the tenant_owner role.
