@@ -1,0 +1,35 @@
+{
+    # Global options
+    auto_https off
+}
+
+# Common proxy headers for OpenTrusty
+(proxy_headers) {
+    header_up Host {host}
+    header_up X-Real-IP {remote_host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Forwarded-Proto {scheme}
+}
+
+# OpenTrusty Auth Plane (Data Plane)
+# Standard path: /auth/*
+:80 {
+    handle /auth/* {
+        reverse_proxy localhost:8080 {
+            import proxy_headers
+        }
+    }
+
+    # OpenTrusty Admin Plane (Control Plane API)
+    # Standard path: /admin/*
+    handle /admin/* {
+        reverse_proxy localhost:8081 {
+            import proxy_headers
+        }
+    }
+
+    # Default fallback
+    handle {
+        abort
+    }
+}
