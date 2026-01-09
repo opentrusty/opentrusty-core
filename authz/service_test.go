@@ -74,16 +74,25 @@ func TestHasPermission(t *testing.T) {
 		Permissions: []string{"edit:stuff"},
 	}
 
+	superAdminRole := &role.Role{
+		ID:          "role-super",
+		Name:        "super-admin",
+		Scope:       role.ScopePlatform,
+		Permissions: []string{"*"},
+	}
+
 	roleRepo := &mockRoleRepo{
 		roles: map[string]*role.Role{
-			adminRole.ID:  adminRole,
-			tenantRole.ID: tenantRole,
+			adminRole.ID:      adminRole,
+			superAdminRole.ID: superAdminRole,
+			tenantRole.ID:     tenantRole,
 		},
 	}
 
 	assignmentRepo := &mockAssignmentRepo{
 		assignments: []*role.Assignment{
 			{UserID: "user-admin", RoleID: adminRole.ID, Scope: role.ScopePlatform},
+			{UserID: "user-super", RoleID: superAdminRole.ID, Scope: role.ScopePlatform},
 			{UserID: "user-tenant", RoleID: tenantRole.ID, Scope: role.ScopeTenant, ScopeContextID: stringPtr("t1")},
 		},
 	}
@@ -120,6 +129,21 @@ func TestHasPermission(t *testing.T) {
 			contextID:  stringPtr("t1"),
 			permission: "tenant:manage_users",
 			want:       false,
+		},
+		{
+			name:       "platform super-admin with wildcard is STILL restricted from tenant user management",
+			userID:     "user-super",
+			scope:      role.ScopeTenant,
+			contextID:  stringPtr("t1"),
+			permission: "tenant:manage_users",
+			want:       false,
+		},
+		{
+			name:       "platform super-admin with wildcard can manage tenants",
+			userID:     "user-super",
+			scope:      role.ScopePlatform,
+			permission: "platform:manage_tenants",
+			want:       true,
 		},
 		{
 			name:       "tenant editor has specific permission in context",

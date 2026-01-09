@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/opentrusty/opentrusty-core/policy"
 	"github.com/opentrusty/opentrusty-core/project"
 	"github.com/opentrusty/opentrusty-core/role"
 )
@@ -207,6 +208,16 @@ func (s *Service) HasPermission(ctx context.Context, userID string, scope role.S
 		}
 
 		if r.HasPermission(permission) {
+			// Platform-Tenant Separation: Even if a platform-scoped role has the permission (or wildcard),
+			// we strictly forbid tenant user management to ensure platform admins cannot manipulate
+			// tenant-level identities. This enforces the isolation invariant at the engine level.
+			if a.Scope == role.ScopePlatform && (permission == policy.PermTenantManageUsers || permission == policy.PermTenantViewUsers) {
+				slog.WarnContext(ctx, "HasPermission: platform-scoped role attempted restricted tenant permission",
+					"user", userID,
+					"perm", permission,
+					"role", r.Name)
+				continue
+			}
 			return true, nil
 		} else {
 			slog.InfoContext(ctx, "HasPermission: role does not have permission", "role", r.Name, "perm", permission)
@@ -235,6 +246,10 @@ func (s *Service) HasPermissionAny(ctx context.Context, userID string, permissio
 		}
 
 		if r.HasPermission(permission) {
+			// Platform-Tenant Separation
+			if a.Scope == role.ScopePlatform && (permission == policy.PermTenantManageUsers || permission == policy.PermTenantViewUsers) {
+				continue
+			}
 			return true, nil
 		}
 	}
