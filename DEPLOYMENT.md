@@ -21,17 +21,21 @@ OpenTrusty is split into several independent planes:
 
 ### 3.0 One-Click Installation (Recommended)
 
-If you have internet access on the target machine, you can install the full OpenTrusty stack (admin, auth, and control panel) with a single command:
+If you have internet access on the target machine, you can install OpenTrusty components with a single command:
 
 ```bash
+# Full stack installation (CLI, Admin, Auth, Console)
 curl -sSL https://raw.githubusercontent.com/opentrusty/opentrusty-core/main/scripts/bootstrap.sh | sudo bash
+
+# Specific components only
+curl ... | sudo bash -s cli admin
 ```
 
-This script will automatically detect your OS/Arch, fetch the latest release, and execute the individual component installers.
-
-> [!NOTE]
-> You can install specific components by setting `INSTALL_COMPONENTS` environment variable:
-> `curl ... | sudo INSTALL_COMPONENTS="admin" bash`
+The script features:
+- **Interactive Mode**: Prompts for component selection if run without arguments.
+- **CLI First**: Prioritizes `opentrusty` CLI installation.
+- **Auto-Initialization**: After CLI installation, it will prompt you to run `migrate` and `bootstrap` automatically.
+- **OS/Arch Detection**: Supports Linux AMD64 and ARM64.
 
 ### 3.1 Prerequisities (Manual Mode)
 
