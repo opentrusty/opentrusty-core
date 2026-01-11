@@ -37,22 +37,9 @@ case $ARCH in
   *) log_error "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-# 3. Version Detection (Latest from GitHub)
+# 3. Versioning
 REPO_BASE="https://github.com/opentrusty"
-VERSION=${VERSION:-""}
-
-if [ -z "$VERSION" ]; then
-  log_info "Fetching latest version from GitHub..."
-  # Try to get latest release tag from admin repo as representative
-  VERSION=$(curl -s "https://api.github.com/repos/opentrusty/opentrusty-admin/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-  
-  if [ -z "$VERSION" ] || [[ "$VERSION" == *"api.github.com"* ]]; then
-    log_warn "Failed to fetch version via API, falling back to v0.1.0"
-    VERSION="v0.1.0"
-  fi
-fi
-
-log_info "Target Version: ${VERSION}"
+GLOBAL_VERSION=${VERSION:-""}
 
 # 4. Component Selection
 # Use INSTALL_COMPONENTS="admin auth control-panel" to customize
@@ -64,18 +51,32 @@ cd "$TMP_DIR"
 
 install_component() {
   local comp=$1
-  local tarball=""
   local repo="opentrusty-$comp"
+  local comp_version="$GLOBAL_VERSION"
   
   log_info "--- Preparing $comp ---"
-  
-  if [ "$comp" == "control-panel" ]; then
-    tarball="opentrusty-control-panel-$VERSION.tar.gz"
-  else
-    tarball="opentrusty-$comp-$VERSION-linux-$ARCH.tar.gz"
+
+  # Detection version for this component if no global version is set
+  if [ -z "$comp_version" ]; then
+    log_info "Fetching latest version for $repo from GitHub..."
+    comp_version=$(curl -s "https://api.github.com/repos/opentrusty/$repo/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    
+    if [ -z "$comp_version" ] || [[ "$comp_version" == *"api.github.com"* ]]; then
+      log_warn "Failed to fetch version for $comp via API, falling back to v0.1.0"
+      comp_version="v0.1.0"
+    fi
   fi
   
-  URL="${REPO_BASE}/${repo}/releases/download/${VERSION}/${tarball}"
+  log_info "Target Version for $comp: ${comp_version}"
+
+  local tarball=""
+  if [ "$comp" == "control-panel" ]; then
+    tarball="opentrusty-control-panel-$comp_version.tar.gz"
+  else
+    tarball="opentrusty-$comp-$comp_version-linux-$ARCH.tar.gz"
+  fi
+  
+  URL="${REPO_BASE}/${repo}/releases/download/${comp_version}/${tarball}"
   
   log_info "Downloading $tarball..."
   if ! curl -L -O "$URL"; then
