@@ -22,13 +22,13 @@ It contains the foundational domain models, security primitives, and repository 
 - `store/`: Concrete persistence implementations (Postgres).
 - `crypto/`: Cryptographic primitives for token signing and encryption.
 
-## Getting Started
-
-This repository is intended to be used as a Go module dependency for other OpenTrusty repositories.
+## Quick Install
 
 ```bash
-go get github.com/opentrusty/opentrusty-core
+curl -sSL https://raw.githubusercontent.com/opentrusty/opentrusty-core/main/scripts/bootstrap.sh | sudo bash
 ```
+
+See the [Deployment Guide](DEPLOYMENT.md) for detailed configuration and manual installation steps.
 
 ## License
 

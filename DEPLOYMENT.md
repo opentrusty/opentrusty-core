@@ -10,15 +10,30 @@ OpenTrusty is split into several independent planes:
 - **Control Panel (`console`)**: Static frontend UI.
 - **CLI (`opentrusty`)**: Migrations and bootstrapping.
 
+> [!TIP]
+> **Unix Daemon Naming**: All backend services follow the Unix daemon convention with a `d` suffix (e.g., `opentrusty-admind`, `opentrusty-authd`).
+
 ## 2. Infrastructure Requirements
 
 - **Operating System**: Linux (amd64).
 - **Database**: PostgreSQL 15+.
 - **Reverse Proxy**: Caddy, Nginx, or similar.
 
-## 3. Installation Flow
+### 3.0 One-Click Installation (Recommended)
 
-### 3.1 Prerequisities
+If you have internet access on the target machine, you can install the full OpenTrusty stack (admin, auth, and control panel) with a single command:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/opentrusty/opentrusty-core/main/scripts/bootstrap.sh | sudo bash
+```
+
+This script will automatically detect your OS/Arch, fetch the latest release, and execute the individual component installers.
+
+> [!NOTE]
+> You can install specific components by setting `INSTALL_COMPONENTS` environment variable:
+> `curl ... | sudo INSTALL_COMPONENTS="admin" bash`
+
+### 3.1 Prerequisities (Manual Mode)
 
 1. Create a dedicated system user:
    ```bash
@@ -76,8 +91,8 @@ opentrusty bootstrap
 ### 3.5 Starting Services
 
 ```bash
-sudo systemctl enable --now opentrusty-auth
-sudo systemctl enable --now opentrusty-admin
+sudo systemctl enable --now opentrusty-authd
+sudo systemctl enable --now opentrusty-admind
 ```
 
 ## 4. Reverse Proxy Cleanup
