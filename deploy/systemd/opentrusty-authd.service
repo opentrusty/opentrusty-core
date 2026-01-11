@@ -1,5 +1,5 @@
 [Unit]
-Description=OpenTrusty Administration Plane (Management API)
+Description=OpenTrusty Authentication Plane (OIDC/OAuth2)
 After=network.target postgresql.service
 
 [Service]
@@ -8,8 +8,8 @@ User=opentrusty
 Group=opentrusty
 WorkingDirectory=/var/lib/opentrusty
 EnvironmentFile=/etc/opentrusty/shared.env
-EnvironmentFile=/etc/opentrusty/admin.env
-ExecStart=/usr/local/bin/opentrusty-admin
+EnvironmentFile=/etc/opentrusty/auth.env
+ExecStart=/usr/local/bin/opentrusty-authd
 Restart=always
 RestartSec=5
 StandardOutput=journal
