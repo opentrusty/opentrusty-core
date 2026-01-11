@@ -41,9 +41,28 @@ esac
 REPO_BASE="https://github.com/opentrusty"
 GLOBAL_VERSION=${VERSION:-""}
 
-# 4. Component Selection
-# Use INSTALL_COMPONENTS="admin auth control-panel" to customize
-COMPONENTS=${INSTALL_COMPONENTS:-"admin auth control-panel"}
+# 4. Component Selection Logic
+# Priority: 1. CLI Arguments, 2. INSTALL_COMPONENTS Env, 3. Interactive Prompt
+COMPONENTS=""
+
+if [ $# -gt 0 ]; then
+  COMPONENTS="$@"
+elif [ -n "$INSTALL_COMPONENTS" ]; then
+  COMPONENTS="$INSTALL_COMPONENTS"
+else
+  if [ -t 0 ]; then
+    log_info "No components specified. Entering interactive selection..."
+    echo "Which components would you like to install? (Separate by space, or leave empty for ALL)"
+    echo "Options: cli, admin, auth, control-panel"
+    read -p "Selection [cli admin auth control-panel]: " SELECTED
+    COMPONENTS=${SELECTED:-"cli admin auth control-panel"}
+  else
+    log_info "Non-interactive mode, installing all components."
+    COMPONENTS="cli admin auth control-panel"
+  fi
+fi
+
+log_info "Installing components: $COMPONENTS"
 
 TMP_DIR="/tmp/opentrusty-bootstrap"
 mkdir -p "$TMP_DIR"
@@ -72,6 +91,9 @@ install_component() {
   local tarball=""
   if [ "$comp" == "control-panel" ]; then
     tarball="opentrusty-control-panel-$comp_version.tar.gz"
+  elif [ "$comp" == "cli" ]; then
+    # CLI binary is named 'opentrusty'
+    tarball="opentrusty-cli-$comp_version-linux-$ARCH.tar.gz"
   else
     tarball="opentrusty-$comp-$comp_version-linux-$ARCH.tar.gz"
   fi
@@ -79,24 +101,66 @@ install_component() {
   URL="${REPO_BASE}/${repo}/releases/download/${comp_version}/${tarball}"
   
   log_info "Downloading $tarball..."
-  if ! curl -L -O "$URL"; then
-    log_error "Failed to download $comp. Skipping."
+  if ! curl -sL -f -O "$URL"; then
+    log_error "Failed to download $comp ($URL). Skipping."
     return 1
   fi
   
   log_info "Extracting $tarball..."
-  mkdir -p "$comp-extract"
-  tar -xzf "$tarball" -C "$comp-extract" --strip-components=1
+  local extract_dir="$comp-extract"
+  mkdir -p "$extract_dir"
+  tar -xzf "$tarball" -C "$extract_dir" --strip-components=1
   
   log_info "Running installer for $comp..."
-  (cd "$comp-extract" && sudo ./install.sh)
+  (cd "$extract_dir" && bash ./install.sh)
   
-  log_success "$comp installation attempt completed."
+  log_success "$comp installation completed."
+
+  # CLI Post-install initialization logic
+  if [[ "$comp" == "cli" && -t 0 ]]; then
+    run_cli_bootstrapper
+  fi
+}
+
+run_cli_bootstrapper() {
+  echo ""
+  log_info "=== OpenTrusty CLI Initialization ==="
+  
+  read -p "Do you want to run database migrations now? (y/N): " RUN_MIGRATE
+  if [[ "$RUN_MIGRATE" =~ ^[Yy]$ ]]; then
+    read -p "Enter OPENTRUSTY_DATABASE_URL: " DB_URL
+    if [ -n "$DB_URL" ]; then
+      OPENTRUSTY_DATABASE_URL="$DB_URL" opentrusty migrate
+      log_success "Migrations completed."
+    else
+      log_warn "Database URL empty, skipping migrations."
+    fi
+  fi
+
+  read -p "Do you want to bootstrap the platform admin now? (y/N): " RUN_BOOTSTRAP
+  if [[ "$RUN_BOOTSTRAP" =~ ^[Yy]$ ]]; then
+    read -p "Enter OPENTRUSTY_IDENTITY_SECRET (32-byte hex): " IDENT_SECRET
+    if [ -n "$IDENT_SECRET" ]; then
+      OPENTRUSTY_IDENTITY_SECRET="$IDENT_SECRET" opentrusty bootstrap
+      log_success "Platform admin bootstrapped."
+    else
+      log_warn "Identity secret empty, skipping bootstrap."
+    fi
+  fi
 }
 
 # 5. Execution Loop
+# Ensure CLI is installed first if selected
+if [[ "$COMPONENTS" == *"cli"* ]]; then
+  install_component "cli"
+  # Filter out cli from the rest to avoid double install
+  COMPONENTS=$(echo "$COMPONENTS" | sed 's/\bcli\b//g')
+fi
+
 for comp in $COMPONENTS; do
-  install_component "$comp"
+  if [ -n "$comp" ]; then
+    install_component "$comp"
+  fi
 done
 
 # 6. Cleanup
