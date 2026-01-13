@@ -16,6 +16,30 @@ log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+# Interaction Helpers
+is_interactive() {
+  if [ -t 0 ]; then return 0; fi
+  if [ -c /dev/tty ] && [ -w /dev/tty ]; then return 0; fi
+  return 1
+}
+
+read_tty() {
+  local prompt="$1"
+  local var_name="$2"
+  local flags="$3"
+  local val=""
+
+  if [ -t 0 ]; then
+    read $flags -p "$prompt" val
+  elif [ -c /dev/tty ]; then
+    read $flags -p "$prompt" val < /dev/tty
+  else
+    # Non-interactive fallback (uses defaults)
+    val=""
+  fi
+  eval $var_name='$val'
+}
+
 # 1. Pre-flight checks
 if [ "$EUID" -ne 0 ]; then
   log_error "This script must be run as root (or via sudo)."
@@ -50,10 +74,10 @@ if [ "$1" == "uninstall" ]; then
   shift # Remove 'uninstall' from args
   UNINSTALL_COMPONENTS="$@"
   if [ -z "$UNINSTALL_COMPONENTS" ]; then
-    if [ -t 0 ]; then
+    if is_interactive; then
       echo "Which components would you like to uninstall? (Separate by space, or leave empty for ALL)"
       echo "Options: cli, admin, auth, control-panel"
-      read -p "Selection [cli admin auth control-panel]: " SELECTED
+      read_tty "Selection [cli admin auth control-panel]: " SELECTED
       UNINSTALL_COMPONENTS=${SELECTED:-"cli admin auth control-panel"}
     else
       UNINSTALL_COMPONENTS="cli admin auth control-panel"
@@ -134,11 +158,11 @@ if [ $# -gt 0 ]; then
 elif [ -n "$INSTALL_COMPONENTS" ]; then
   COMPONENTS="$INSTALL_COMPONENTS"
 else
-  if [ -t 0 ]; then
+  if is_interactive; then
     log_info "No components specified. Entering interactive selection..."
     echo "Which components would you like to install? (Separate by space, or leave empty for ALL)"
     echo "Options: cli, admin, auth, control-panel"
-    read -p "Selection [cli admin auth control-panel]: " SELECTED
+    read_tty "Selection [cli admin auth control-panel]: " SELECTED
     COMPONENTS=${SELECTED:-"cli admin auth control-panel"}
   else
     log_info "Non-interactive mode, installing all components."
@@ -200,8 +224,12 @@ install_component() {
   log_success "$comp installation completed."
 
   # CLI Post-install initialization logic
-  if [[ "$comp" == "cli" && -t 0 ]]; then
-    run_cli_bootstrapper
+  if [[ "$comp" == "cli" ]]; then
+    if is_interactive; then
+      run_cli_bootstrapper
+    else
+      log_warn "Interactive setup skipped because no terminal was detected. Run the script interactively or use 'opentrusty migrate' manually."
+    fi
   fi
 }
 
@@ -211,16 +239,16 @@ run_cli_bootstrapper() {
   log_info "Note: This will perform initialization (migration & bootstrap)."
   
   # Discrete DB Collect
-  read -p "Enter Database Host [localhost]: " OT_DB_HOST
+  read_tty "Enter Database Host [localhost]: " OT_DB_HOST
   OT_DB_HOST=${OT_DB_HOST:-"localhost"}
-  read -p "Enter Database Port [5432]: " OT_DB_PORT
+  read_tty "Enter Database Port [5432]: " OT_DB_PORT
   OT_DB_PORT=${OT_DB_PORT:-"5432"}
-  read -p "Enter Database User [postgres]: " OT_DB_USER
+  read_tty "Enter Database User [postgres]: " OT_DB_USER
   OT_DB_USER=${OT_DB_USER:-"postgres"}
-  read -s -p "Enter Database Password [password]: " OT_DB_PASS
+  read_tty "Enter Database Password [password]: " OT_DB_PASS "-s"
   echo ""
   OT_DB_PASS=${OT_DB_PASS:-"password"}
-  read -p "Enter Database Name [opentrusty]: " OT_DB_NAME
+  read_tty "Enter Database Name [opentrusty]: " OT_DB_NAME
   OT_DB_NAME=${OT_DB_NAME:-"opentrusty"}
   
   export OPENTRUSTY_DB_HOST="$OT_DB_HOST"
@@ -238,11 +266,11 @@ run_cli_bootstrapper() {
   log_success "Migrations completed."
 
   echo ""
-  read -p "Do you want to bootstrap the platform admin now? (y/N): " RUN_BOOTSTRAP
+  read_tty "Do you want to bootstrap the platform admin now? (y/N): " RUN_BOOTSTRAP
   if [[ "$RUN_BOOTSTRAP" =~ ^[Yy]$ ]]; then
-    read -p "Enter OPENTRUSTY_IDENTITY_SECRET (32-byte hex): " IDENT_SECRET
-    read -p "Enter Platform Admin Email: " ADMIN_EMAIL
-    read -s -p "Enter Platform Admin Password: " ADMIN_PASSWORD
+    read_tty "Enter OPENTRUSTY_IDENTITY_SECRET (32-byte hex): " IDENT_SECRET
+    read_tty "Enter Platform Admin Email: " ADMIN_EMAIL
+    read_tty "Enter Platform Admin Password: " ADMIN_PASSWORD "-s"
     echo ""
 
     if [ -n "$IDENT_SECRET" ] && [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
@@ -261,7 +289,7 @@ run_cli_bootstrapper() {
   fi
 
   echo ""
-  read -p "Do you want to persist these settings to /etc/opentrusty/cli.env? (y/N): " PERSIST
+  read_tty "Do you want to persist these settings to /etc/opentrusty/cli.env? (y/N): " PERSIST
   if [[ "$PERSIST" =~ ^[Yy]$ ]]; then
     cat > /etc/opentrusty/cli.env << EOF
 # OpenTrusty CLI Configuration
