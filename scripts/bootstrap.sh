@@ -251,12 +251,20 @@ run_cli_bootstrapper() {
   read_tty "Enter Database Name [opentrusty]: " OT_DB_NAME
   OT_DB_NAME=${OT_DB_NAME:-"opentrusty"}
   
+  # Identity Secret Collect (Mandatory for CLI to start)
+  read_tty "Enter OPENTRUSTY_IDENTITY_SECRET (32-byte hex, or empty to auto-gen): " OT_IDENT_SECRET
+  if [ -z "$OT_IDENT_SECRET" ]; then
+    OT_IDENT_SECRET=$(cat /dev/urandom | tr -dc "a-f0-9" | fold -w 64 | head -n 1)
+    log_info "Auto-generated Identity Secret: $OT_IDENT_SECRET"
+  fi
+
   export OPENTRUSTY_DB_HOST="$OT_DB_HOST"
   export OPENTRUSTY_DB_PORT="$OT_DB_PORT"
   export OPENTRUSTY_DB_USER="$OT_DB_USER"
   export OPENTRUSTY_DB_PASSWORD="$OT_DB_PASS"
   export OPENTRUSTY_DB_NAME="$OT_DB_NAME"
   export OPENTRUSTY_DB_SSLMODE="disable"
+  export OPENTRUSTY_IDENTITY_SECRET="$OT_IDENT_SECRET"
 
   log_info "Running database migrations..."
   if ! opentrusty migrate; then
@@ -268,13 +276,11 @@ run_cli_bootstrapper() {
   echo ""
   read_tty "Do you want to bootstrap the platform admin now? (y/N): " RUN_BOOTSTRAP
   if [[ "$RUN_BOOTSTRAP" =~ ^[Yy]$ ]]; then
-    read_tty "Enter OPENTRUSTY_IDENTITY_SECRET (32-byte hex): " IDENT_SECRET
     read_tty "Enter Platform Admin Email: " ADMIN_EMAIL
     read_tty "Enter Platform Admin Password: " ADMIN_PASSWORD "-s"
     echo ""
 
-    if [ -n "$IDENT_SECRET" ] && [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
-      export OPENTRUSTY_IDENTITY_SECRET="$IDENT_SECRET"
+    if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
       export OPENTRUSTY_BOOTSTRAP_ADMIN_EMAIL="$ADMIN_EMAIL"
       export OPENTRUSTY_BOOTSTRAP_ADMIN_PASSWORD="$ADMIN_PASSWORD"
       
