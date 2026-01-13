@@ -37,11 +37,47 @@ case $ARCH in
   *) log_error "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-# 3. Versioning
-REPO_BASE="https://github.com/opentrusty"
-GLOBAL_VERSION=${VERSION:-""}
+# 4. Global Commands (Uninstall)
+if [ "$1" == "uninstall" ]; then
+  log_info "=== OpenTrusty Global Uninstaller ==="
+  echo "This will uninstall selected components from this host."
+  
+  shift # Remove 'uninstall' from args
+  UNINSTALL_COMPONENTS="$@"
+  if [ -z "$UNINSTALL_COMPONENTS" ]; then
+    if [ -t 0 ]; then
+      echo "Which components would you like to uninstall? (Separate by space, or leave empty for ALL)"
+      echo "Options: cli, admin, auth, control-panel"
+      read -p "Selection [cli admin auth control-panel]: " SELECTED
+      UNINSTALL_COMPONENTS=${SELECTED:-"cli admin auth control-panel"}
+    else
+      UNINSTALL_COMPONENTS="cli admin auth control-panel"
+    fi
+  fi
+  
+  for comp in $UNINSTALL_COMPONENTS; do
+    repo="opentrusty-$comp"
+    comp_version=$(curl -s "https://api.github.com/repos/opentrusty/$repo/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    if [ -z "$comp_version" ]; then comp_version="v0.1.0"; fi
+    
+    tarball=""
+    if [ "$comp" == "control-panel" ]; then tarball="opentrusty-control-panel-$comp_version.tar.gz"
+    elif [ "$comp" == "cli" ]; then tarball="opentrusty-cli-$comp_version-linux-$ARCH.tar.gz"
+    else tarball="opentrusty-$comp-$comp_version-linux-$ARCH.tar.gz"; fi
+    
+    URL="${REPO_BASE}/${repo}/releases/download/${comp_version}/${tarball}"
+    curl -sL -f -O "$URL"
+    mkdir -p "$comp-uninstall"
+    tar -xzf "$tarball" -C "$comp-uninstall" --strip-components=1
+    (cd "$comp-uninstall" && bash ./uninstall.sh)
+    rm -rf "$comp-uninstall" "$tarball"
+  done
+  
+  log_success "Uninstallation complete."
+  exit 0
+fi
 
-# 4. Component Selection Logic
+# 5. Component Selection Logic
 # Priority: 1. CLI Arguments, 2. INSTALL_COMPONENTS Env, 3. Interactive Prompt
 COMPONENTS=""
 
@@ -124,28 +160,74 @@ install_component() {
 
 run_cli_bootstrapper() {
   echo ""
-  log_info "=== OpenTrusty CLI Initialization ==="
+  log_info "=== OpenTrusty CLI Interactive Setup ==="
+  log_info "Note: This will perform initialization (migration & bootstrap)."
   
-  read -p "Do you want to run database migrations now? (y/N): " RUN_MIGRATE
-  if [[ "$RUN_MIGRATE" =~ ^[Yy]$ ]]; then
-    read -p "Enter OPENTRUSTY_DATABASE_URL: " DB_URL
-    if [ -n "$DB_URL" ]; then
-      OPENTRUSTY_DATABASE_URL="$DB_URL" opentrusty migrate
-      log_success "Migrations completed."
-    else
-      log_warn "Database URL empty, skipping migrations."
-    fi
-  fi
+  # Discrete DB Collect
+  read -p "Enter Database Host [localhost]: " OT_DB_HOST
+  OT_DB_HOST=${OT_DB_HOST:-"localhost"}
+  read -p "Enter Database Port [5432]: " OT_DB_PORT
+  OT_DB_PORT=${OT_DB_PORT:-"5432"}
+  read -p "Enter Database User [postgres]: " OT_DB_USER
+  OT_DB_USER=${OT_DB_USER:-"postgres"}
+  read -s -p "Enter Database Password [password]: " OT_DB_PASS
+  echo ""
+  OT_DB_PASS=${OT_DB_PASS:-"password"}
+  read -p "Enter Database Name [opentrusty]: " OT_DB_NAME
+  OT_DB_NAME=${OT_DB_NAME:-"opentrusty"}
+  
+  export OPENTRUSTY_DB_HOST="$OT_DB_HOST"
+  export OPENTRUSTY_DB_PORT="$OT_DB_PORT"
+  export OPENTRUSTY_DB_USER="$OT_DB_USER"
+  export OPENTRUSTY_DB_PASSWORD="$OT_DB_PASS"
+  export OPENTRUSTY_DB_NAME="$OT_DB_NAME"
+  export OPENTRUSTY_DB_SSLMODE="disable"
 
+  log_info "Running database migrations..."
+  if ! opentrusty migrate; then
+    log_error "Migration failed. Please check your DB credentials."
+    return 1
+  fi
+  log_success "Migrations completed."
+
+  echo ""
   read -p "Do you want to bootstrap the platform admin now? (y/N): " RUN_BOOTSTRAP
   if [[ "$RUN_BOOTSTRAP" =~ ^[Yy]$ ]]; then
     read -p "Enter OPENTRUSTY_IDENTITY_SECRET (32-byte hex): " IDENT_SECRET
-    if [ -n "$IDENT_SECRET" ]; then
-      OPENTRUSTY_IDENTITY_SECRET="$IDENT_SECRET" opentrusty bootstrap
-      log_success "Platform admin bootstrapped."
+    read -p "Enter Platform Admin Email: " ADMIN_EMAIL
+    read -s -p "Enter Platform Admin Password: " ADMIN_PASSWORD
+    echo ""
+
+    if [ -n "$IDENT_SECRET" ] && [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
+      export OPENTRUSTY_IDENTITY_SECRET="$IDENT_SECRET"
+      export OPENTRUSTY_BOOTSTRAP_ADMIN_EMAIL="$ADMIN_EMAIL"
+      export OPENTRUSTY_BOOTSTRAP_ADMIN_PASSWORD="$ADMIN_PASSWORD"
+      
+      if opentrusty bootstrap; then
+        log_success "Platform admin bootstrapped."
+      else
+        log_error "Bootstrap failed."
+      fi
     else
-      log_warn "Identity secret empty, skipping bootstrap."
+      log_warn "Missing required fields, skipping bootstrap."
     fi
+  fi
+
+  echo ""
+  read -p "Do you want to persist these settings to /etc/opentrusty/cli.env? (y/N): " PERSIST
+  if [[ "$PERSIST" =~ ^[Yy]$ ]]; then
+    cat > /etc/opentrusty/cli.env << EOF
+# OpenTrusty CLI Configuration
+OPENTRUSTY_DB_HOST=$OPENTRUSTY_DB_HOST
+OPENTRUSTY_DB_PORT=$OPENTRUSTY_DB_PORT
+OPENTRUSTY_DB_USER=$OPENTRUSTY_DB_USER
+OPENTRUSTY_DB_PASSWORD=$OPENTRUSTY_DB_PASSWORD
+OPENTRUSTY_DB_NAME=$OPENTRUSTY_DB_NAME
+OPENTRUSTY_DB_SSLMODE=$OPENTRUSTY_DB_SSLMODE
+OPENTRUSTY_IDENTITY_SECRET=$OPENTRUSTY_IDENTITY_SECRET
+EOF
+    chmod 600 /etc/opentrusty/cli.env
+    log_success "Persisted CLI configuration to /etc/opentrusty/cli.env"
   fi
 }
 
