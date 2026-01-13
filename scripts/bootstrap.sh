@@ -65,19 +65,51 @@ if [ "$1" == "uninstall" ]; then
 
   for comp in $UNINSTALL_COMPONENTS; do
     repo="opentrusty-$comp"
-    comp_version=$(curl -s "https://api.github.com/repos/opentrusty/$repo/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-    if [ -z "$comp_version" ] || [[ "$comp_version" == *"api.github.com"* ]]; then
-      log_warn "Failed to fetch version for $comp via API, falling back to v0.1.1"
-      comp_version="v0.1.1"
+    comp_version=""
+    
+    # Try local detection first
+    if [ "$comp" == "admin" ] && command -v opentrusty-admind &> /dev/null; then
+      comp_version=$(opentrusty-admind --version | head -n 1 | tr -d '\r')
+    elif [ "$comp" == "auth" ] && command -v opentrusty-authd &> /dev/null; then
+      comp_version=$(opentrusty-authd --version | head -n 1 | tr -d '\r')
+    elif [ "$comp" == "cli" ] && command -v opentrusty &> /dev/null; then
+      comp_version=$(opentrusty --version | head -n 1 | tr -d '\r')
+    fi
+
+    # Try version file if binary check failed or for non-binary components
+    if [ -z "$comp_version" ] || [ "$comp_version" == "dev" ]; then
+      if [ "$comp" == "control-panel" ] && [ -f "/var/www/opentrusty-control-panel/dist/version.txt" ]; then
+        comp_version=$(cat "/var/www/opentrusty-control-panel/dist/version.txt" | head -n 1 | tr -d '\r')
+      elif [ -f "/etc/opentrusty/${comp}.version" ]; then
+        comp_version=$(cat "/etc/opentrusty/${comp}.version" | head -n 1 | tr -d '\r')
+      fi
     fi
     
+    # Cleanup detected version (ensure it starts with v)
+    if [[ -n "$comp_version" && ! "$comp_version" == v* && "$comp_version" != "dev" ]]; then
+      comp_version="v$comp_version"
+    fi
+
+    # Fallback to GitHub API if local detection failed
+    if [ -z "$comp_version" ] || [ "$comp_version" == "vdev" ] || [ "$comp_version" == "dev" ]; then
+      log_info "No local version detected for $comp. Fetching latest from GitHub..."
+      comp_version=$(curl -s "https://api.github.com/repos/opentrusty/$repo/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    fi
+    
+    if [ -z "$comp_version" ] || [[ "$comp_version" == *"api.github.com"* ]]; then
+      log_error "Could not determine version for $comp. Please set VERSION env var."
+      continue
+    fi
+    
+    log_info "Targeting version $comp_version for $comp uninstallation..."
+
     tarball=""
     if [ "$comp" == "control-panel" ]; then tarball="opentrusty-control-panel-$comp_version.tar.gz"
     elif [ "$comp" == "cli" ]; then tarball="opentrusty-cli-$comp_version-linux-$ARCH.tar.gz"
     else tarball="opentrusty-$comp-$comp_version-linux-$ARCH.tar.gz"; fi
     
     URL="${REPO_BASE}/${repo}/releases/download/${comp_version}/${tarball}"
-    log_info "Downloading uninstaller for $comp..."
+    log_info "Downloading uninstaller package ($tarball)..."
     if ! curl -sL -f -O "$URL"; then
       log_warn "Failed to download $comp ($URL). Skipping."
       continue
@@ -88,8 +120,6 @@ if [ "$1" == "uninstall" ]; then
     (cd "$comp-uninstall" && bash ./uninstall.sh)
     rm -rf "$comp-uninstall" "$tarball"
   done
-  
-  rm -rf "$TMP_DIR"
   
   log_success "Uninstallation complete."
   exit 0
