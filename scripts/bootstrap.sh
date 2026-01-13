@@ -22,7 +22,7 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# 2. Environment & OS Detection
+# 3. Environment & OS Detection
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
@@ -37,7 +37,12 @@ case $ARCH in
   *) log_error "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-# 4. Global Commands (Uninstall)
+# 4. Versioning & Paths
+REPO_BASE="https://github.com/opentrusty"
+GLOBAL_VERSION=${VERSION:-""}
+TMP_DIR="/tmp/opentrusty-bootstrap"
+
+# 5. Global Commands (Uninstall)
 if [ "$1" == "uninstall" ]; then
   log_info "=== OpenTrusty Global Uninstaller ==="
   echo "This will uninstall selected components from this host."
@@ -55,10 +60,16 @@ if [ "$1" == "uninstall" ]; then
     fi
   fi
   
+  mkdir -p "$TMP_DIR"
+  cd "$TMP_DIR"
+
   for comp in $UNINSTALL_COMPONENTS; do
     repo="opentrusty-$comp"
     comp_version=$(curl -s "https://api.github.com/repos/opentrusty/$repo/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-    if [ -z "$comp_version" ]; then comp_version="v0.1.0"; fi
+    if [ -z "$comp_version" ] || [[ "$comp_version" == *"api.github.com"* ]]; then
+      log_warn "Failed to fetch version for $comp via API, falling back to v0.1.1"
+      comp_version="v0.1.1"
+    fi
     
     tarball=""
     if [ "$comp" == "control-panel" ]; then tarball="opentrusty-control-panel-$comp_version.tar.gz"
@@ -66,12 +77,19 @@ if [ "$1" == "uninstall" ]; then
     else tarball="opentrusty-$comp-$comp_version-linux-$ARCH.tar.gz"; fi
     
     URL="${REPO_BASE}/${repo}/releases/download/${comp_version}/${tarball}"
-    curl -sL -f -O "$URL"
+    log_info "Downloading uninstaller for $comp..."
+    if ! curl -sL -f -O "$URL"; then
+      log_warn "Failed to download $comp ($URL). Skipping."
+      continue
+    fi
+    
     mkdir -p "$comp-uninstall"
     tar -xzf "$tarball" -C "$comp-uninstall" --strip-components=1
     (cd "$comp-uninstall" && bash ./uninstall.sh)
     rm -rf "$comp-uninstall" "$tarball"
   done
+  
+  rm -rf "$TMP_DIR"
   
   log_success "Uninstallation complete."
   exit 0
@@ -100,7 +118,6 @@ fi
 
 log_info "Installing components: $COMPONENTS"
 
-TMP_DIR="/tmp/opentrusty-bootstrap"
 mkdir -p "$TMP_DIR"
 cd "$TMP_DIR"
 
