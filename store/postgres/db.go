@@ -56,16 +56,22 @@ type Config struct {
 // Errors: Connectivity and configuration errors
 func New(ctx context.Context, cfg Config) (*DB, error) {
 	connStr := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s pool_max_conns=%d pool_min_conns=%d",
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host,
 		cfg.Port,
 		cfg.User,
 		cfg.Password,
 		cfg.Database,
 		cfg.SSLMode,
-		cfg.MaxOpenConns,
-		cfg.MaxIdleConns,
 	)
+
+	// Append pool settings only if explicitly configured
+	if cfg.MaxOpenConns > 0 {
+		connStr += fmt.Sprintf(" pool_max_conns=%d", cfg.MaxOpenConns)
+	}
+	if cfg.MaxIdleConns > 0 {
+		connStr += fmt.Sprintf(" pool_min_conns=%d", cfg.MaxIdleConns)
+	}
 
 	poolConfig, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
