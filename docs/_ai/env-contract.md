@@ -11,45 +11,70 @@ All runtime environment variables MUST use the prefix **OPENTRUSTY_**.
 
 ---
 
-## 🛠️ Shared Variables
+## 🗄️ Database Configuration (Discrete Fields)
 
-| Variable | Description | Default | Consumption |
+All database-consuming binaries MUST use discrete fields. Connection string format (`OPENTRUSTY_DATABASE_URL`) is **deprecated**.
+
+| Variable | Description | Default | Required |
 | :--- | :--- | :--- | :--- |
-| `OPENTRUSTY_DB_URL` | PostgreSQL connection string | `postgres://...` | Auth, Admin, CLI |
-| `OPENTRUSTY_PORT` | HTTP listener port | See repo docs | Auth, Admin |
-| `OPENTRUSTY_LOG_LEVEL` | Logging verbosity (debug, info, error) | `info` | All |
-| `OPENTRUSTY_IDENTITY_SECRET` | Shared HMAC key for PII hashing (MANDATORY in prod) | - | All |
+| `OPENTRUSTY_DB_HOST` | PostgreSQL host | — | ✅ |
+| `OPENTRUSTY_DB_PORT` | PostgreSQL port | `5432` | — |
+| `OPENTRUSTY_DB_USER` | PostgreSQL user | — | ✅ |
+| `OPENTRUSTY_DB_PASSWORD` | PostgreSQL password | — | ✅ (prod) |
+| `OPENTRUSTY_DB_NAME` | PostgreSQL database name | — | ✅ |
+| `OPENTRUSTY_DB_SSLMODE` | SSL mode (`disable`, `require`, `verify-full`) | `disable` | — |
+
+---
+
+## 🔐 Security Variables
+
+| Variable | Description | Consumption |
+| :--- | :--- | :--- |
+| `OPENTRUSTY_IDENTITY_SECRET` | Shared HMAC key for PII hashing (MANDATORY in prod) | All DB-consuming binaries |
+| `OPENTRUSTY_SESSION_SECRET` | Secret for session management | Auth, Admin |
 
 ---
 
 ## 🛡️ Security Requirements
 
-1. **No Hardcoding**: Secrets (keys, passwords) must never be hardcoded in `main.go` or templates.
-2. **Environment Files**: For production (`systemd`, `docker`), use dedicated environment files (`EnvironmentFile=` or `--env-file`).
-3. **No Sharing**: Each plane (Auth, Admin) must use its own distinct environment file to maintain plane isolation.
+1. **No Hardcoding**: Secrets (keys, passwords) must never be hardcoded in source code.
+2. **Per-Binary `.env`**: Each binary owns its own `.env.example` and deployed `.env` file. No `shared.env`.
+3. **Environment Files**: For production (`systemd`), use dedicated environment files (`EnvironmentFile=`).
 4. **Data Minimization**: Do not pass unused variables to a process.
 
 ---
 
-## 🏗️ Repository consumption
+## 🏗️ Per-Binary Configuration
 
 ### Auth Plane (`authd`)
-- `OPENTRUSTY_DB_URL`
-- `OPENTRUSTY_PORT` (Default: 8080)
+- `OPENTRUSTY_ENV` (Default: `dev`)
+- `OPENTRUSTY_AUTH_LISTEN_ADDR` (Default: `:8080`)
+- `OPENTRUSTY_LOG_LEVEL` (Default: `info`)
+- `OPENTRUSTY_BASE_URL`
 - `OPENTRUSTY_IDENTITY_SECRET`
-- `OPENTRUSTY_AUTH_SIGNING_KEY`
+- `OPENTRUSTY_SESSION_SECRET`
+- `OPENTRUSTY_AUTH_SESSION_NAMESPACE` (Default: `auth`)
+- `OPENTRUSTY_AUTH_CSRF_ENABLED`
+- `OPENTRUSTY_COOKIE_SECURE`, `OPENTRUSTY_COOKIE_HTTPONLY`, `OPENTRUSTY_COOKIE_SAMESITE`, `OPENTRUSTY_COOKIE_DOMAIN`, `OPENTRUSTY_COOKIE_NAME`
+- `OPENTRUSTY_DB_HOST`, `OPENTRUSTY_DB_PORT`, `OPENTRUSTY_DB_USER`, `OPENTRUSTY_DB_PASSWORD`, `OPENTRUSTY_DB_NAME`, `OPENTRUSTY_DB_SSLMODE`
 
 ### Admin Plane (`admind`)
-- `OPENTRUSTY_DB_URL`
-- `OPENTRUSTY_PORT` (Default: 8081)
+- `OPENTRUSTY_ENV` (Default: `dev`)
+- `OPENTRUSTY_ADMIN_LISTEN_ADDR` (Default: `:8081`)
+- `OPENTRUSTY_LOG_LEVEL` (Default: `info`)
+- `OPENTRUSTY_BASE_URL`
 - `OPENTRUSTY_IDENTITY_SECRET`
-- `OPENTRUSTY_ADMIN_SIGNING_KEY`
+- `OPENTRUSTY_SESSION_SECRET`
+- `OPENTRUSTY_ADMIN_SESSION_NAMESPACE` (Default: `admin`)
+- `OPENTRUSTY_COOKIE_SECURE`, `OPENTRUSTY_COOKIE_HTTPONLY`, `OPENTRUSTY_COOKIE_SAMESITE`, `OPENTRUSTY_COOKIE_DOMAIN`, `OPENTRUSTY_COOKIE_NAME`
+- `OPENTRUSTY_DB_HOST`, `OPENTRUSTY_DB_PORT`, `OPENTRUSTY_DB_USER`, `OPENTRUSTY_DB_PASSWORD`, `OPENTRUSTY_DB_NAME`, `OPENTRUSTY_DB_SSLMODE`
 
 ### CLI (`opentrusty`)
-- `OPENTRUSTY_DB_URL`
+- `OPENTRUSTY_LOG_LEVEL` (Default: `info`)
 - `OPENTRUSTY_IDENTITY_SECRET`
 - `OPENTRUSTY_BOOTSTRAP_ADMIN_EMAIL`
 - `OPENTRUSTY_BOOTSTRAP_ADMIN_PASSWORD`
+- `OPENTRUSTY_DB_HOST`, `OPENTRUSTY_DB_PORT`, `OPENTRUSTY_DB_USER`, `OPENTRUSTY_DB_PASSWORD`, `OPENTRUSTY_DB_NAME`, `OPENTRUSTY_DB_SSLMODE`
 
 ---
 
