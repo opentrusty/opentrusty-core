@@ -25,10 +25,10 @@ It contains the foundational domain models, security primitives, and repository 
 ## Quick Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/opentrusty/opentrusty-core/main/scripts/bootstrap.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/opentrusty/opentrusty-cli/main/scripts/bootstrap.sh | sudo bash
 ```
 
-See the [Deployment Guide](DEPLOYMENT.md) for detailed configuration and manual installation steps.
+See the [Deployment Guide](https://github.com/opentrusty/opentrusty-cli/blob/main/DEPLOYMENT.md) for detailed configuration and manual installation steps.
 
 ## License
 
